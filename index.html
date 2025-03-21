@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sanrio Memory Game</title>
+    <link href="./dist/output.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen">
+    <h1 class="text-4xl font-bold text-pink-600 mb-6">Sanrio Memory Game</h1>
+
+    <!-- Player Input Section -->
+    <div id="player-input" class="mb-4">
+        <input type="text" id="player1-name" placeholder="Player 1 Name" class="mr-2 px-3 py-1 rounded border-gray-300 font-medium text-lg">
+        <input type="text" id="player2-name" placeholder="Player 2 Name" class="mr-2 px-3 py-1 rounded border-gray-300 font-medium text-lg">
+        <button id="start-game-button" class="px-4 py-2 bg-pink-500 text-white rounded-lg hover:bg-pink-600 font-semibold text-lg">Start Game</button>
+    </div>
+
+    <!-- Scoreboard -->
+    <div id="scoreboard" class="mb-4 hidden">
+        <p class="text-xl font-semibold text-purple-700"><span id="player1-display">Player 1</span>: <span id="player1-score">0</span></p>
+        <p class="text-xl font-semibold text-purple-700"><span id="player2-display">Player 2</span>: <span id="player2-score">0</span></p>
+        <p class="text-lg font-medium text-gray-700">Current Turn: <span id="current-turn" class="font-bold"></span></p>
+    </div>
+
+
+    <div id="game-board" class="grid grid-cols-4 gap-4"></div>
+
+    <div id="win-message-container">
+        <div id="win-message"></div>
+        <button id="restart-button" class="mt-4 px-4 py-2 bg-pink-500 text-white rounded-lg hover:bg-pink-600 font-semibold text-lg">Restart Game</button>
+    </div>
+
+    <script>
+        const characters = [
+            'badtz-maru', 'cinnamoroll', 'hello-kitty', 'keroppi',
+            'kuromi', 'my-melody', 'pochaco', 'pompompurin'
+        ];
+
+        // Create pairs (each character appears twice)
+        const cards = [...characters, ...characters];
+        let flippedCards = [];
+        let matchedPairs = 0;
+
+        // Player variables
+        let player1Name = '';
+        let player2Name = '';
+        let player1Score = 0;
+        let player2Score = 0;
+        let currentPlayer = 1; // 1 for player 1, 2 for player 2
+
+        const gameBoard = document.getElementById('game-board');
+        const winMessageContainer = document.getElementById('win-message-container'); // Use the container
+        const winMessage = document.getElementById('win-message');
+        const restartButton = document.getElementById('restart-button');
+        const startGameButton = document.getElementById('start-game-button');
+        const playerInput = document.getElementById('player-input');
+        const scoreboard = document.getElementById('scoreboard');
+        const player1ScoreDisplay = document.getElementById('player1-score');
+        const player2ScoreDisplay = document.getElementById('player2-score');
+        const player1Display = document.getElementById('player1-display');
+        const player2Display = document.getElementById('player2-display');
+        const currentTurnDisplay = document.getElementById('current-turn');
+
+
+
+        // Shuffle the cards
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        // Create the game board
+        function createBoard() {
+            gameBoard.innerHTML = '';
+            const shuffledCards = shuffle(cards);
+            shuffledCards.forEach((character, index) => {
+                const card = document.createElement('div');
+                card.classList.add('card');
+                card.dataset.character = character;
+                card.innerHTML = `
+                    <div class="card-inner">
+                        <div class="card-front">
+                            <img src="images/${character}.jpg" alt="${character}" class="w-full h-full object-cover rounded-lg">
+                        </div>
+                        <div class="card-back"></div>
+                    </div>
+                `;
+                card.addEventListener('click', flipCard);
+                gameBoard.appendChild(card);
+            });
+        }
+
+        // Flip card logic
+        function flipCard() {
+            if (flippedCards.length < 2 && !flippedCards.includes(this) && !this.classList.contains('matched')) {
+                this.classList.add('flipped');
+                flippedCards.push(this);
+
+                if (flippedCards.length === 2) {
+                    // Disable clicking on other cards while checking for a match
+                    gameBoard.querySelectorAll('.card:not(.flipped)').forEach(card => {
+                        card.style.pointerEvents = 'none';
+                    });
+                    setTimeout(checkMatch, 1000);
+                }
+            }
+        }
+
+        function fireConfetti() {
+            confetti({
+                particleCount: 100,
+                spread: 70,
+                origin: { y: 0.6 }
+            });
+        }
+
+        // Check if the flipped cards match
+        function checkMatch() {
+            const [card1, card2] = flippedCards;
+            gameBoard.querySelectorAll('.card').forEach(card => {
+                card.style.pointerEvents = 'auto'; // Re-enable card clicks
+            });
+            if (card1.dataset.character === card2.dataset.character) {
+                card1.classList.add('matched');
+                card2.classList.add('matched');
+                updateScore();
+                matchedPairs++;
+                if (matchedPairs === characters.length) {
+                    let winningMessage = '';
+                    if (player1Score > player2Score) {
+                        winningMessage = `You Win, ${player1Name}! 🎉`;
+                    } else if (player2Score > player1Score) {
+                        winningMessage = `You Win, ${player2Name}! 🎉`;
+                    } else {
+                        winningMessage = "You are Tied! 🎉";
+                    }
+                    winMessage.textContent = winningMessage;
+                    winMessageContainer.style.display = 'flex'; // Show the container
+                    fireConfetti();
+                }
+            } else {
+                card1.classList.remove('flipped');
+                card2.classList.remove('flipped');
+                switchTurn();
+            }
+            flippedCards = [];
+        }
+
+        function updateScore() {
+            if (currentPlayer === 1) {
+                player1Score++;
+                player1ScoreDisplay.textContent = player1Score;
+            } else {
+                player2Score++;
+                player2ScoreDisplay.textContent = player2Score;
+            }
+        }
+
+
+        function switchTurn() {
+            currentPlayer = (currentPlayer === 1) ? 2 : 1;
+            currentTurnDisplay.textContent = (currentPlayer === 1) ? player1Name : player2Name;
+        }
+
+        // Restart the game
+        restartButton.addEventListener('click', () => {
+            matchedPairs = 0;
+            flippedCards = [];
+            player1Score = 0;
+            player2Score = 0;
+            player1ScoreDisplay.textContent = '0';
+            player2ScoreDisplay.textContent = '0';
+            winMessageContainer.style.display = 'none'; // Hide the container
+            currentPlayer = 1;
+            currentTurnDisplay.textContent = player1Name;
+            createBoard();
+        });
+
+        startGameButton.addEventListener('click', () => {
+            player1Name = document.getElementById('player1-name').value || 'Player 1';
+            player2Name = document.getElementById('player2-name').value || 'Player 2';
+
+            player1Display.textContent = player1Name;
+            player2Display.textContent = player2Name;
+            currentTurnDisplay.textContent = player1Name;
+
+            playerInput.classList.add('hidden');
+            scoreboard.classList.remove('hidden');
+
+            createBoard();
+        });
+
+        // Initialize the game (but don't create the board yet)
+        // Instead, wait for the start button to be clicked
+    </script>
+</body>
+</html>
